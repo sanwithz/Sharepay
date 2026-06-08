@@ -10,6 +10,9 @@
   
   <!-- LIFF SDK -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <!-- SweetAlert2 via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   
   <!-- React & ReactDOM via CDN -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -53,6 +56,19 @@
       if (isNaN(num)) return '0.00';
       return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
+
+    // SweetAlert2 Toast configuration
+    const Toast = Swal.mixin({
+      toast: true,
+      position: 'top',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer)
+        toast.addEventListener('mouseleave', Swal.resumeTimer)
+      }
+    });
 
     // --- Inline Icons (replacing lucide-react for standalone HTML) ---
     const IconBase = ({ children, className = '' }) => (
@@ -156,7 +172,9 @@
             .then(() => {
               setIsLiffInit(true);
               console.log("LIFF initialized successfully");
-              if (window.liff.isLoggedIn()) {
+              if (!window.liff.isLoggedIn()) {
+                window.liff.login();
+              } else {
                 window.liff.getProfile()
                   .then(profile => {
                     setLiffProfile(profile);
@@ -186,13 +204,15 @@
       };
 
       const getBillSummaryText = () => {
-        let msg = `💸 SharePay - สรุปยอดหารค่าอาหาร 💸\n`;
-        msg += `ยอดรวมทั้งหมด: ฿${formatCurrency(calculations.grandTotal)}\n\n`;
+        let msg = `💸 SharePay - สรุปยอดหารค่า\n`;
+        msg += `ยอดรวมทั้งหมด: ฿${formatCurrency(calculations.grandTotal)}\n`;
+        msg += `จำนวนหาร : ${people.length} คน\n`;
+        msg += `ยอดรวมจ่าย :\n`;
         
         people.forEach(person => {
           const data = calculations.personTotals[person.id];
           if (data && data.total > 0) {
-            msg += `👤 ${person.name}: ฿${formatCurrency(data.total)}\n`;
+            msg += `- ${person.name}: ฿${formatCurrency(data.total)}\n`;
           }
         });
         
@@ -200,11 +220,154 @@
         return msg;
       };
 
+      const getFlexMessage = () => {
+        const totalBillStr = `฿${formatCurrency(calculations.grandTotal)}`;
+        const peopleCountStr = `${people.length} คน`;
+        
+        const peopleContents = people.map((person, idx) => {
+          const data = calculations.personTotals[person.id];
+          const amount = data ? data.total : 0;
+          return {
+            "type": "box",
+            "layout": "horizontal",
+            "margin": idx === 0 ? "md" : "sm",
+            "contents": [
+              {
+                "type": "text",
+                "text": `• ${person.name}`,
+                "size": "sm",
+                "color": "#4b5563",
+                "flex": 4
+              },
+              {
+                "type": "text",
+                "text": `฿${formatCurrency(amount)}`,
+                "size": "sm",
+                "align": "end",
+                "weight": "bold",
+                "color": "#1f2937",
+                "flex": 3
+              }
+            ]
+          };
+        });
+
+        return {
+          "type": "flex",
+          "altText": `💸 SharePay - สรุปยอดหารค่าอาหาร ${totalBillStr}`,
+          "contents": {
+            "type": "bubble",
+            "styles": {
+              "header": {
+                "backgroundColor": "#f3f4f6"
+              },
+              "footer": {
+                "separator": true
+              }
+            },
+            "header": {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "text",
+                  "text": "💸 SharePay - สรุปยอดหารค่า",
+                  "weight": "bold",
+                  "size": "md",
+                  "color": "#4f46e5",
+                  "align": "center"
+                }
+              ]
+            },
+            "body": {
+              "type": "box",
+              "layout": "vertical",
+              "spacing": "sm",
+              "contents": [
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "ยอดรวมทั้งหมด:",
+                      "size": "sm",
+                      "color": "#4b5563"
+                    },
+                    {
+                      "type": "text",
+                      "text": totalBillStr,
+                      "size": "sm",
+                      "align": "end",
+                      "weight": "bold",
+                      "color": "#1f2937"
+                    }
+                  ]
+                },
+                {
+                  "type": "box",
+                  "layout": "horizontal",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "จำนวนหาร:",
+                      "size": "sm",
+                      "color": "#4b5563"
+                    },
+                    {
+                      "type": "text",
+                      "text": peopleCountStr,
+                      "size": "sm",
+                      "align": "end",
+                      "weight": "bold",
+                      "color": "#1f2937"
+                    }
+                  ]
+                },
+                {
+                  "type": "separator",
+                  "margin": "md"
+                },
+                {
+                  "type": "text",
+                  "text": "ยอดรวมจ่าย :",
+                  "size": "sm",
+                  "weight": "bold",
+                  "color": "#111111",
+                  "margin": "md"
+                },
+                ...peopleContents
+              ]
+            },
+            "footer": {
+              "type": "box",
+              "layout": "vertical",
+              "contents": [
+                {
+                  "type": "button",
+                  "action": {
+                    "type": "uri",
+                    "label": "ดูรายละเอียด/แก้ไขบิล",
+                    "uri": getShareUrl()
+                  },
+                  "style": "primary",
+                  "color": "#4f46e5",
+                  "height": "sm"
+                }
+              ]
+            }
+          }
+        };
+      };
+
       const handleShareToLine = async () => {
         if (!window.liff) {
           const summaryText = getBillSummaryText();
           navigator.clipboard.writeText(summaryText);
-          alert("คัดลอกสรุปยอดไปยังคลิปบอร์ดแล้ว!");
+          Toast.fire({
+            icon: 'success',
+            title: 'คัดลอกสรุปยอดไปยังคลิปบอร์ดแล้ว!'
+          });
           return;
         }
         
@@ -218,22 +381,28 @@
         if (window.liff.isApiAvailable('shareTargetPicker')) {
           try {
             const res = await window.liff.shareTargetPicker([
-              {
-                type: "text",
-                text: summaryText
-              }
+              getFlexMessage()
             ]);
             if (res) {
-              alert("แชร์สำเร็จแล้ว!");
+              Toast.fire({
+                icon: 'success',
+                title: 'แชร์สำเร็จแล้ว!'
+              });
             }
           } catch (err) {
             console.error("Error sharing via Target Picker", err);
             navigator.clipboard.writeText(summaryText);
-            alert("ไม่สามารถแชร์ผ่าน LINE ได้ คัดลอกสรุปยอดไปยังคลิปบอร์ดแล้ว!");
+            Toast.fire({
+              icon: 'warning',
+              title: 'ไม่สามารถแชร์ผ่าน LINE ได้ คัดลอกสรุปยอดแล้ว!'
+            });
           }
         } else {
           navigator.clipboard.writeText(summaryText);
-          alert("คัดลอกสรุปยอดไปยังคลิปบอร์ดแล้ว!");
+          Toast.fire({
+            icon: 'success',
+            title: 'คัดลอกสรุปยอดไปยังคลิปบอร์ดแล้ว!'
+          });
         }
       };
 
