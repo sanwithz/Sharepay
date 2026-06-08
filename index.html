@@ -584,10 +584,13 @@
           const price = parseFloat(item.price) || 0;
           subtotal += price;
           
-          const assignees = item.assignedTo.length;
-          if (assignees > 0) {
-            const splitPrice = price / assignees;
-            item.assignedTo.forEach(personId => {
+          // If no one is assigned, split among everyone by default
+          const activeAssignees = item.assignedTo && item.assignedTo.length > 0 ? item.assignedTo : people.map(p => p.id);
+          const assigneesCount = activeAssignees.length;
+          
+          if (assigneesCount > 0) {
+            const splitPrice = price / assigneesCount;
+            activeAssignees.forEach(personId => {
               if (personTotals[personId]) {
                 personTotals[personId].itemsOwed += splitPrice;
               }
@@ -608,6 +611,14 @@
             
             personData.taxOwed = parsedTax * proportion;
             personData.serviceOwed = parsedSc * proportion;
+            personData.total = personData.itemsOwed + personData.taxOwed + personData.serviceOwed;
+          });
+        } else {
+          // If subtotal is 0 but there are fees, split fees evenly
+          people.forEach(p => {
+            const personData = personTotals[p.id];
+            personData.taxOwed = parsedTax / (people.length || 1);
+            personData.serviceOwed = parsedSc / (people.length || 1);
             personData.total = personData.itemsOwed + personData.taxOwed + personData.serviceOwed;
           });
         }
