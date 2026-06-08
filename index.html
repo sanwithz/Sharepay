@@ -199,15 +199,17 @@
           step: 4
         };
         const encoded = btoa(encodeURIComponent(JSON.stringify(state)));
-        const baseUrl = window.location.href.split('?')[0];
-        return `${baseUrl}?bill=${encoded}`;
+        return `https://liff.line.me/2007125937-7USdi4nM?bill=${encodeURIComponent(encoded)}`;
       };
 
       const getBillSummaryText = () => {
         let msg = `💸 SharePay - สรุปยอดหารค่า\n`;
         msg += `ยอดรวมทั้งหมด: ฿${formatCurrency(calculations.grandTotal)}\n`;
         msg += `จำนวนหาร : ${people.length} คน\n`;
-        msg += `ยอดรวมจ่าย :\n`;
+        
+        const avg = calculations.grandTotal / (people.length || 1);
+        msg += `ยอดรวมจ่าย : ฿${formatCurrency(avg)}\n\n`;
+        msg += `รายละเอียดรายบุคคล:\n`;
         
         people.forEach(person => {
           const data = calculations.personTotals[person.id];
@@ -223,6 +225,7 @@
       const getFlexMessage = () => {
         const totalBillStr = `฿${formatCurrency(calculations.grandTotal)}`;
         const peopleCountStr = `${people.length} คน`;
+        const avgAmountStr = `฿${formatCurrency(calculations.grandTotal / (people.length || 1))}`;
         
         const peopleContents = people.map((person, idx) => {
           const data = calculations.personTotals[person.id];
@@ -230,14 +233,13 @@
           return {
             "type": "box",
             "layout": "horizontal",
-            "margin": idx === 0 ? "md" : "sm",
+            "margin": "sm",
             "contents": [
               {
                 "type": "text",
                 "text": `• ${person.name}`,
                 "size": "sm",
-                "color": "#4b5563",
-                "flex": 4
+                "color": "#4b5563"
               },
               {
                 "type": "text",
@@ -245,8 +247,7 @@
                 "size": "sm",
                 "align": "end",
                 "weight": "bold",
-                "color": "#1f2937",
-                "flex": 3
+                "color": "#1f2937"
               }
             ]
           };
@@ -257,86 +258,107 @@
           "altText": `💸 SharePay - สรุปยอดหารค่าอาหาร ${totalBillStr}`,
           "contents": {
             "type": "bubble",
-            "styles": {
-              "header": {
-                "backgroundColor": "#f3f4f6"
-              },
-              "footer": {
-                "separator": true
-              }
-            },
-            "header": {
+            "body": {
               "type": "box",
               "layout": "vertical",
+              "spacing": "md",
               "contents": [
                 {
                   "type": "text",
                   "text": "💸 SharePay - สรุปยอดหารค่า",
                   "weight": "bold",
                   "size": "md",
-                  "color": "#4f46e5",
-                  "align": "center"
+                  "color": "#4f46e5"
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "spacing": "sm",
+                  "contents": [
+                    {
+                      "type": "box",
+                      "layout": "horizontal",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "ยอดรวมทั้งหมด:",
+                          "size": "sm",
+                          "color": "#4b5563"
+                        },
+                        {
+                          "type": "text",
+                          "text": totalBillStr,
+                          "size": "sm",
+                          "align": "end",
+                          "weight": "bold",
+                          "color": "#1f2937"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "box",
+                      "layout": "horizontal",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "จำนวนหาร:",
+                          "size": "sm",
+                          "color": "#4b5563"
+                        },
+                        {
+                          "type": "text",
+                          "text": peopleCountStr,
+                          "size": "sm",
+                          "align": "end",
+                          "weight": "bold",
+                          "color": "#1f2937"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "box",
+                      "layout": "horizontal",
+                      "contents": [
+                        {
+                          "type": "text",
+                          "text": "ยอดรวมจ่าย:",
+                          "size": "sm",
+                          "color": "#4b5563"
+                        },
+                        {
+                          "type": "text",
+                          "text": avgAmountStr,
+                          "size": "sm",
+                          "align": "end",
+                          "weight": "bold",
+                          "color": "#1f2937"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "separator"
+                },
+                {
+                  "type": "box",
+                  "layout": "vertical",
+                  "spacing": "xs",
+                  "contents": [
+                    {
+                      "type": "text",
+                      "text": "ยอดจ่ายรายบุคคล:",
+                      "size": "sm",
+                      "weight": "bold",
+                      "color": "#111111",
+                      "margin": "xs"
+                    },
+                    ...peopleContents
+                  ]
                 }
-              ]
-            },
-            "body": {
-              "type": "box",
-              "layout": "vertical",
-              "spacing": "sm",
-              "contents": [
-                {
-                  "type": "box",
-                  "layout": "horizontal",
-                  "contents": [
-                    {
-                      "type": "text",
-                      "text": "ยอดรวมทั้งหมด:",
-                      "size": "sm",
-                      "color": "#4b5563"
-                    },
-                    {
-                      "type": "text",
-                      "text": totalBillStr,
-                      "size": "sm",
-                      "align": "end",
-                      "weight": "bold",
-                      "color": "#1f2937"
-                    }
-                  ]
-                },
-                {
-                  "type": "box",
-                  "layout": "horizontal",
-                  "contents": [
-                    {
-                      "type": "text",
-                      "text": "จำนวนหาร:",
-                      "size": "sm",
-                      "color": "#4b5563"
-                    },
-                    {
-                      "type": "text",
-                      "text": peopleCountStr,
-                      "size": "sm",
-                      "align": "end",
-                      "weight": "bold",
-                      "color": "#1f2937"
-                    }
-                  ]
-                },
-                {
-                  "type": "separator",
-                  "margin": "md"
-                },
-                {
-                  "type": "text",
-                  "text": "ยอดรวมจ่าย :",
-                  "size": "sm",
-                  "weight": "bold",
-                  "color": "#111111",
-                  "margin": "md"
-                },
-                ...peopleContents
               ]
             },
             "footer": {
@@ -351,8 +373,7 @@
                     "uri": getShareUrl()
                   },
                   "style": "primary",
-                  "color": "#4f46e5",
-                  "height": "sm"
+                  "color": "#4f46e5"
                 }
               ]
             }
@@ -903,6 +924,10 @@
                         <span>฿{formatCurrency(data.taxOwed + data.serviceOwed)}</span>
                       </div>
                     )}
+                    <div className="flex justify-between font-semibold text-gray-950 pt-1 border-t border-dashed border-gray-150">
+                      <span>Total Payment</span>
+                      <span>฿{formatCurrency(data.total)}</span>
+                    </div>
                   </div>
                 </Card>
               );
