@@ -225,8 +225,11 @@
                 window.liff.getProfile()
                   .then(profile => {
                     setLiffProfile(profile);
-                    // Update the first person ("Me") to the user's LINE display name
-                    setPeople(prev => prev.map(p => p.id === '1' ? { ...p, name: profile.displayName } : p));
+                    // Only update the first participant's name if we are not loading a shared bill
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (!urlParams.has('bill')) {
+                      setPeople(prev => prev.map(p => p.id === '1' ? { ...p, name: profile.displayName } : p));
+                    }
                   })
                   .catch(err => console.error("Error getting profile:", err));
               }
