@@ -147,18 +147,65 @@
       const [liffProfile, setLiffProfile] = useState(null);
       const [isLiffInit, setIsLiffInit] = useState(false);
 
+      // State Compression/Decompression for smaller URLs
+      const compressState = () => {
+        return {
+          i: items.map(item => [
+            item.name,
+            parseFloat(item.price) || 0,
+            item.assignedTo.map(id => people.findIndex(p => p.id === id)).filter(idx => idx !== -1)
+          ]),
+          p: people.map(p => p.name),
+          t: parseFloat(tax) || 0,
+          s: parseFloat(serviceCharge) || 0
+        };
+      };
+
+      const decompressState = (compressed) => {
+        const restoredPeople = (compressed.p || []).map((name, idx) => ({
+          id: idx.toString(),
+          name
+        }));
+        
+        const restoredItems = (compressed.i || []).map((itemArray, idx) => ({
+          id: idx.toString(),
+          name: itemArray[0],
+          price: itemArray[1],
+          assignedTo: (itemArray[2] || []).map(pIdx => pIdx.toString())
+        }));
+
+        return {
+          items: restoredItems,
+          people: restoredPeople,
+          tax: compressed.t || 0,
+          serviceCharge: compressed.s || 0,
+          step: 4
+        };
+      };
+
       // Load state from URL query param 'bill' if present
       useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const billData = urlParams.get('bill');
         if (billData) {
           try {
-            const decoded = JSON.parse(decodeURIComponent(atob(billData)));
-            if (decoded.items) setItems(decoded.items);
-            if (decoded.people) setPeople(decoded.people);
-            if (decoded.tax !== undefined) setTax(decoded.tax);
-            if (decoded.serviceCharge !== undefined) setServiceCharge(decoded.serviceCharge);
-            if (decoded.step) setStep(decoded.step);
+            const rawDecoded = decodeURIComponent(escape(atob(billData)));
+            const parsed = JSON.parse(rawDecoded);
+            
+            if (parsed.i && parsed.p) {
+              const decompressed = decompressState(parsed);
+              setItems(decompressed.items);
+              setPeople(decompressed.people);
+              setTax(decompressed.tax);
+              setServiceCharge(decompressed.serviceCharge);
+              setStep(decompressed.step);
+            } else {
+              if (parsed.items) setItems(parsed.items);
+              if (parsed.people) setPeople(parsed.people);
+              if (parsed.tax !== undefined) setTax(parsed.tax);
+              if (parsed.serviceCharge !== undefined) setServiceCharge(parsed.serviceCharge);
+              if (parsed.step) setStep(parsed.step);
+            }
           } catch (e) {
             console.error("Failed to parse bill from URL", e);
           }
@@ -191,14 +238,9 @@
       }, []);
 
       const getShareUrl = () => {
-        const state = {
-          items,
-          people,
-          tax,
-          serviceCharge,
-          step: 4
-        };
-        const encoded = btoa(encodeURIComponent(JSON.stringify(state)));
+        const state = compressState();
+        const jsonStr = JSON.stringify(state);
+        const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
         return `https://liff.line.me/2007125937-7USdi4nM?bill=${encodeURIComponent(encoded)}`;
       };
 
