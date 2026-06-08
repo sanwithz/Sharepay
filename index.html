@@ -245,7 +245,7 @@
       };
 
       const getBillSummaryText = () => {
-        let msg = `💸 SharePay - สรุปยอดหารค่า\n`;
+        let msg = `💸 SharePay - สรุปยอดหารค่าอาหาร\n`;
         msg += `ยอดรวมทั้งหมด: ฿${formatCurrency(calculations.grandTotal)}\n`;
         msg += `จำนวนหาร : ${people.length} คน\n`;
         
@@ -1006,13 +1006,24 @@
               variant="outline" 
               className="w-full bg-white" 
               onClick={() => {
-                if (window.confirm('Start over? This will clear all data.')) {
-                  setItems([]);
-                  setTax(0);
-                  setServiceCharge(0);
-                  setImage(null);
-                  setStep(1);
-                }
+                Swal.fire({
+                  title: 'Start Over?',
+                  text: 'This will clear all data and reset the bill.',
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonColor: '#4f46e5',
+                  cancelButtonColor: '#d1d5db',
+                  confirmButtonText: 'Yes, start over',
+                  cancelButtonText: 'Cancel'
+                }).then((result) => {
+                  if (result.isConfirmed) {
+                    setItems([]);
+                    setTax(0);
+                    setServiceCharge(0);
+                    setImage(null);
+                    setStep(1);
+                  }
+                });
               }}
             >
               Start New Bill
