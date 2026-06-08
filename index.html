@@ -8,6 +8,9 @@
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   
+  <!-- LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  
   <!-- React & ReactDOM via CDN -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -44,12 +47,21 @@
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo } = React;
 
+    // Helper for formatting currency with thousand separators
+    const formatCurrency = (value) => {
+      const num = parseFloat(value);
+      if (isNaN(num)) return '0.00';
+      return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
     // --- Inline Icons (replacing lucide-react for standalone HTML) ---
     const IconBase = ({ children, className = '' }) => (
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
         {children}
       </svg>
     );
+
+    const Share2 = ({ className }) => <IconBase className={className}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></IconBase>;
 
     const Camera = ({ className }) => <IconBase className={className}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></IconBase>;
     const Plus = ({ className }) => <IconBase className={className}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></IconBase>;
@@ -114,6 +126,116 @@
 
       // UI State
       const [errorMsg, setErrorMsg] = useState('');
+
+      // LIFF & URL State
+      const [liffProfile, setLiffProfile] = useState(null);
+      const [isLiffInit, setIsLiffInit] = useState(false);
+
+      // Load state from URL query param 'bill' if present
+      useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const billData = urlParams.get('bill');
+        if (billData) {
+          try {
+            const decoded = JSON.parse(decodeURIComponent(atob(billData)));
+            if (decoded.items) setItems(decoded.items);
+            if (decoded.people) setPeople(decoded.people);
+            if (decoded.tax !== undefined) setTax(decoded.tax);
+            if (decoded.serviceCharge !== undefined) setServiceCharge(decoded.serviceCharge);
+            if (decoded.step) setStep(decoded.step);
+          } catch (e) {
+            console.error("Failed to parse bill from URL", e);
+          }
+        }
+      }, []);
+
+      // LIFF SDK Init
+      useEffect(() => {
+        if (window.liff) {
+          window.liff.init({ liffId: "2007125937-7USdi4nM" })
+            .then(() => {
+              setIsLiffInit(true);
+              console.log("LIFF initialized successfully");
+              if (window.liff.isLoggedIn()) {
+                window.liff.getProfile()
+                  .then(profile => {
+                    setLiffProfile(profile);
+                    // Update the first person ("Me") to the user's LINE display name
+                    setPeople(prev => prev.map(p => p.id === '1' ? { ...p, name: profile.displayName } : p));
+                  })
+                  .catch(err => console.error("Error getting profile:", err));
+              }
+            })
+            .catch(err => {
+              console.error("LIFF initialization failed", err);
+            });
+        }
+      }, []);
+
+      const getShareUrl = () => {
+        const state = {
+          items,
+          people,
+          tax,
+          serviceCharge,
+          step: 4
+        };
+        const encoded = btoa(encodeURIComponent(JSON.stringify(state)));
+        const baseUrl = window.location.href.split('?')[0];
+        return `${baseUrl}?bill=${encoded}`;
+      };
+
+      const getBillSummaryText = () => {
+        let msg = `💸 SharePay - สรุปยอดหารค่าอาหาร 💸\n`;
+        msg += `ยอดรวมทั้งหมด: ฿${formatCurrency(calculations.grandTotal)}\n\n`;
+        
+        people.forEach(person => {
+          const data = calculations.personTotals[person.id];
+          if (data && data.total > 0) {
+            msg += `👤 ${person.name}: ฿${formatCurrency(data.total)}\n`;
+          }
+        });
+        
+        msg += `\nดูรายละเอียด/แก้ไขบิลได้ที่: ${getShareUrl()}`;
+        return msg;
+      };
+
+      const handleShareToLine = async () => {
+        if (!window.liff) {
+          const summaryText = getBillSummaryText();
+          navigator.clipboard.writeText(summaryText);
+          alert("คัดลอกสรุปยอดไปยังคลิปบอร์ดแล้ว!");
+          return;
+        }
+        
+        if (!window.liff.isLoggedIn()) {
+          window.liff.login();
+          return;
+        }
+
+        const summaryText = getBillSummaryText();
+        
+        if (window.liff.isApiAvailable('shareTargetPicker')) {
+          try {
+            const res = await window.liff.shareTargetPicker([
+              {
+                type: "text",
+                text: summaryText
+              }
+            ]);
+            if (res) {
+              alert("แชร์สำเร็จแล้ว!");
+            }
+          } catch (err) {
+            console.error("Error sharing via Target Picker", err);
+            navigator.clipboard.writeText(summaryText);
+            alert("ไม่สามารถแชร์ผ่าน LINE ได้ คัดลอกสรุปยอดไปยังคลิปบอร์ดแล้ว!");
+          }
+        } else {
+          navigator.clipboard.writeText(summaryText);
+          alert("คัดลอกสรุปยอดไปยังคลิปบอร์ดแล้ว!");
+        }
+      };
 
       const handleImageUpload = async (e) => {
         const file = e.target.files[0];
@@ -514,7 +636,7 @@
               <Card key={item.id} className="p-4 border-l-4 border-l-indigo-500">
                 <div className="flex justify-between items-start mb-3">
                   <h3 className="font-semibold text-gray-900">{item.name || 'Unnamed Item'}</h3>
-                  <span className="font-bold text-indigo-600">฿{parseFloat(item.price || 0).toFixed(2)}</span>
+                  <span className="font-bold text-indigo-600">฿{formatCurrency(item.price)}</span>
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
@@ -568,13 +690,13 @@
           {/* Grand Total Card */}
           <Card className="p-6 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white border-none shadow-lg shadow-indigo-200">
             <div className="text-indigo-100 text-sm font-medium mb-1">Total Bill</div>
-            <div className="text-4xl font-bold">฿{calculations.grandTotal.toFixed(2)}</div>
+            <div className="text-4xl font-bold">฿{formatCurrency(calculations.grandTotal)}</div>
             
             <div className="mt-4 pt-4 border-t border-white/20 flex justify-between text-sm">
-              <div className="text-indigo-100">Subtotal: ฿{calculations.subtotal.toFixed(2)}</div>
+              <div className="text-indigo-100">Subtotal: ฿{formatCurrency(calculations.subtotal)}</div>
               {(calculations.parsedTax > 0 || calculations.parsedSc > 0) && (
                 <div className="text-indigo-100">
-                  Fees: ฿{(calculations.parsedTax + calculations.parsedSc).toFixed(2)}
+                  Fees: ฿{formatCurrency(calculations.parsedTax + calculations.parsedSc)}
                 </div>
               )}
             </div>
@@ -597,19 +719,19 @@
                       {person.name}
                     </div>
                     <div className="font-bold text-xl text-indigo-600">
-                      ฿{data.total.toFixed(2)}
+                      ฿{formatCurrency(data.total)}
                     </div>
                   </div>
                   
                   <div className="pl-11 text-sm text-gray-500 space-y-1">
                     <div className="flex justify-between">
                       <span>Items</span>
-                      <span>฿{data.itemsOwed.toFixed(2)}</span>
+                      <span>฿{formatCurrency(data.itemsOwed)}</span>
                     </div>
                     {(data.taxOwed > 0 || data.serviceOwed > 0) && (
                       <div className="flex justify-between text-gray-400">
                         <span>Tax & Service (Proportional)</span>
-                        <span>฿{(data.taxOwed + data.serviceOwed).toFixed(2)}</span>
+                        <span>฿{formatCurrency(data.taxOwed + data.serviceOwed)}</span>
                       </div>
                     )}
                   </div>
@@ -618,7 +740,15 @@
             })}
           </div>
 
-          <div className="pt-6">
+          <div className="pt-6 space-y-3">
+            <Button 
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-100" 
+              onClick={handleShareToLine}
+              icon={Share2}
+            >
+              Share to LINE
+            </Button>
+            
             <Button 
               variant="outline" 
               className="w-full bg-white" 
@@ -648,8 +778,16 @@
               </div>
               <span className="font-bold text-xl tracking-tight text-gray-900">SharePay</span>
             </div>
-            <div className="text-xs font-semibold text-gray-400 tracking-widest uppercase">
-              Step {step} of 4
+            <div className="flex items-center space-x-3">
+              {liffProfile && (
+                <div className="flex items-center space-x-2 bg-gray-50 pl-2 pr-3 py-1 rounded-full border border-gray-100">
+                  <img src={liffProfile.pictureUrl} alt="profile" className="w-6 h-6 rounded-full border border-indigo-200" />
+                  <span className="text-xs font-semibold text-gray-700 max-w-[80px] truncate">{liffProfile.displayName}</span>
+                </div>
+              )}
+              <div className="text-xs font-semibold text-gray-400 tracking-widest uppercase">
+                Step {step} of 4
+              </div>
             </div>
           </header>
 
